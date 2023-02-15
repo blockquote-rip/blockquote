@@ -37,7 +37,8 @@ class Program
         Console.WriteLine("Subscriptions: " + string.Join("\n", subs.Select(x => x.Value.ToString())));
 
         // NextTweetStreamAsync will continue to run in background
-        Task.Run(async () =>
+        // Squelching async not awaited warning with a "discard"
+        _ = Task.Run(async () =>
         {
             // Take in parameter a callback called for each new tweet
             // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
