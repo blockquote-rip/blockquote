@@ -18,7 +18,9 @@ class Program
         var client = new TwitterSharp.Client.TwitterClient(bearer);
         
         Console.WriteLine("Building monitoring request...");
-        var expr = Expression.Author("MirrorReaderBot");
+        var expr = Expression.Author("MirrorReaderBot").And(
+            Expression.IsQuote()
+        );
         Console.WriteLine($"\tDesired expression is: {expr.ToString()}");
 
         // Check what our current filters are
