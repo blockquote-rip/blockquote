@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Configuration;
+using TwitterSharp.Client;
 using TwitterSharp.Request.AdvancedSearch;
 using TwitterSharp.Request.Option;
 using TwitterSharp.Rule;
@@ -14,7 +16,7 @@ class Program
 
         Console.WriteLine("Creating Twitter client...");
         var client = new TwitterSharp.Client.TwitterClient(bearer);
-
+        /*
         Console.WriteLine("Building monitoring request...");
         var expr = Expression.Author("MirrorReaderBot");
         Console.WriteLine($"\tDesired expression is: {expr.ToString()}");
@@ -64,6 +66,11 @@ class Program
             await Task.Delay(1000);
             secondsLeft--;
         }
+        */
+
+        Console.WriteLine("Fetching tweet thread...");
+        var x = await GetTweetThread("1623381339457179649", client);
+
         Console.WriteLine("\nDone.");
     }
 
@@ -89,4 +96,50 @@ class Program
 
         return result;
     }
+
+    private static async Task<CosmosTweet?> GetTweetThread(string? tweetId, TwitterClient client, uint depth = 0)
+        {
+            CosmosTweet? result = null;
+
+            if(tweetId == null)
+            {
+                return result;
+            }
+            else {	
+                try
+                {
+                    var options = new TweetSearchOptions
+                    {
+                        TweetOptions = new []{ TweetOption.Created_At, TweetOption.Referenced_Tweets, TweetOption.Attachments, TweetOption.Entities },
+                        UserOptions = new []{ UserOption.Created_At, UserOption.Profile_Image_Url, UserOption.Verified },
+                        MediaOptions = new []{ MediaOption.Url, MediaOption.Preview_Image_Url }
+                    };
+
+                    var tweet = await client.GetTweetAsync(tweetId, options);
+                    result = new CosmosTweet(tweet);
+                    // Finding the quoted tweet or the tweet it was replying to has to be found with some linq,
+                    // And the CosmosTweet constructor takes care of that for us.
+                    result.QuotedTweet = await GetTweetThread(result.QuotedTweet?.id, client, depth+1);
+                    result.InReplyTo = await GetTweetThread(result.InReplyTo?.id, client);
+                }
+                catch(Exception ex)
+                {
+                    await Console.Error.WriteLineAsync($"{ex.GetType().Name} - {ex.Message}\n{ex.InnerException?.Message}");
+                }
+
+                return result;
+            }
+        }
+
+        private static async Task<Container> GetDbContainer()
+        {
+            var cosmosClient = new CosmosClient(Environment.GetEnvironmentVariable("CosmosDbUrl"), Environment.GetEnvironmentVariable("CosmosDbKey"));
+            var dbResp = await cosmosClient.CreateDatabaseIfNotExistsAsync(Environment.GetEnvironmentVariable("CosmosDbId"));
+            var db = dbResp.Database;
+
+            var containerResp = await db.CreateContainerIfNotExistsAsync(Environment.GetEnvironmentVariable("CosmosDbContainer"), "/id");
+            var container = containerResp.Container;
+
+            return container;
+        }
 }
