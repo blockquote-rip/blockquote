@@ -16,7 +16,7 @@ class Program
 
         Console.WriteLine("Creating Twitter client...");
         var client = new TwitterSharp.Client.TwitterClient(bearer);
-        /*
+        
         Console.WriteLine("Building monitoring request...");
         var expr = Expression.Author("MirrorReaderBot");
         Console.WriteLine($"\tDesired expression is: {expr.ToString()}");
@@ -36,7 +36,7 @@ class Program
 
         Console.WriteLine("Display current subscription for stream...");
         var subs = await client.GetInfoTweetStreamAsync();
-        Console.WriteLine("Subscriptions: " + string.Join("\n", subs.Select(x => x.Value.ToString())));
+        Console.WriteLine("Subscriptions: " + string.Join("\n", subs.Select(x => x.Id + " " + x.Value.ToString())));
 
         // NextTweetStreamAsync will continue to run in background
         // Squelching async not awaited warning with a "discard"
@@ -44,9 +44,20 @@ class Program
         {
             // Take in parameter a callback called for each new tweet
             // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
-            await client.NextTweetStreamAsync((tweet) =>
+            await client.NextTweetStreamAsync(async (tweet) =>
             {
-                Console.WriteLine($"\nFrom {tweet.Author.Name}: {tweet.Text} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
+                Console.WriteLine($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
+                var tweetThread = await GetTweetThread(tweet.Id, client);
+                // Debugging output
+                var cnt = 0;
+                while(tweetThread != null)
+                {
+                    Console.Write("\n");
+                    for(var n = 0; n < cnt; n++) Console.Write("    ");
+                    Console.WriteLine($"{tweetThread.CreatedBy.ScreenName}: {tweetThread?.Text}");
+                    cnt++;
+                    tweetThread = tweetThread?.InReplyTo ?? tweetThread?.QuotedTweet;
+                }
             },
             new TweetSearchOptions
             {
@@ -66,10 +77,6 @@ class Program
             await Task.Delay(1000);
             secondsLeft--;
         }
-        */
-
-        Console.WriteLine("Fetching tweet thread...");
-        var x = await GetTweetThread("1623381339457179649", client);
 
         Console.WriteLine("\nDone.");
     }
