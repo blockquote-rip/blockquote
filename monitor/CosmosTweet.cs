@@ -10,8 +10,8 @@ namespace monitor
         public DateTimeOffset CreatedAt { get; set ;}
         public CosmosTweetUser CreatedBy {get; set;}
         public List<CosmosTweetMedia> Media {get; set;}
-        public CosmosTweet QuotedTweet {get;set;}
-        public CosmosTweet InReplyTo {get;set;}
+        public CosmosTweet? QuotedTweet {get;set;}
+        public CosmosTweet? InReplyTo {get;set;}
         public string Text {get;set;}
         public string Url {get;set;}
         public DateTimeOffset LastUpdated {get; set;}
@@ -43,12 +43,15 @@ namespace monitor
             CreatedAt = new DateTimeOffset(tweet.CreatedAt ?? DateTime.Now);
             LastUpdated = CreatedAt;
             CreatedBy = new CosmosTweetUser(tweet.Author);
-            Media = tweet.Attachments.Media.Select(m => new CosmosTweetMedia(m)).ToList();
+            Media = tweet.Attachments?.Media?.Select(m => new CosmosTweetMedia(m)).ToList() ?? new List<CosmosTweetMedia>();
             Text = tweet.Text;
             Url = $"https://twitter.com/{tweet.Author.Username}/status/{tweet.Id}";
             
-            var qt = tweet.ReferencedTweets.FirstOrDefault(r => r.Type == ReferenceType.Quoted);
+            var qt = tweet.ReferencedTweets?.FirstOrDefault(r => r.Type == ReferenceType.Quoted);
             QuotedTweet = qt == null ? null : new CosmosTweet(qt);
+
+            var irt = tweet.ReferencedTweets?.FirstOrDefault(r => r.Type == ReferenceType.RepliedTo);
+            InReplyTo = irt == null ? null : new CosmosTweet(irt);
         }
 
         public CosmosTweet(ReferencedTweet tweet)
