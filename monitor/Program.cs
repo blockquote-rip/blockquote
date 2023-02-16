@@ -132,7 +132,7 @@ class Program
             {
                 Console.Write("\n");
                 for(var n = 0; n < cnt; n++) Console.Write("    ");
-                Console.WriteLine($"{curTweet.CreatedBy.ScreenName}: {curTweet?.Text}");
+                Console.WriteLine($"{curTweet.CreatedBy?.ScreenName}: {curTweet?.Text}");
                 cnt++;
                 curTweet = curTweet?.InReplyTo ?? curTweet?.QuotedTweet;
             }

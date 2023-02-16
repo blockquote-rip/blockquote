@@ -7,15 +7,15 @@ namespace monitor
     public class CosmosTweet
     {
         public string id { get; set; }//It's obnoxious, but UpsertItemAsync<>() insists Id be lowercase.
-        public DateTimeOffset CreatedAt { get; set ;}
-        public CosmosTweetUser CreatedBy {get; set;}
-        public List<CosmosTweetMedia> Media {get; set;}
+        public DateTimeOffset CreatedAt { get; set ;} = DateTimeOffset.Now;
+        public CosmosTweetUser? CreatedBy {get; set;}
+        public List<CosmosTweetMedia> Media {get; set;} = new List<CosmosTweetMedia>();
         public CosmosTweet? QuotedTweet {get;set;}
         public CosmosTweet? InReplyTo {get;set;}
-        public string Text {get;set;}
-        public string Url {get;set;}
+        public string Text {get;set;} = string.Empty;
+        public string Url {get;set;} = string.Empty;
         public DateTimeOffset LastUpdated {get; set;}
-        public bool Deleted {get; set;}
+        public bool Deleted {get; set;} = false;
         public DateTimeOffset NextUpdate { get => WhenToUpdate(); }
 
 
@@ -32,11 +32,6 @@ namespace monitor
                 return LastUpdated.AddDays(7);
         }
 
-        public CosmosTweet() 
-        {
-            Media = new List<CosmosTweetMedia>();
-            Deleted = false;
-        }
         public CosmosTweet(Tweet tweet)
         {
             id = tweet.Id;
@@ -68,7 +63,6 @@ namespace monitor
         public string ProfileImageUrl {get; set;}
         public bool Verified {get;set;}
 
-        public CosmosTweetUser() {}
         public CosmosTweetUser(User user)
         {
             Id = user.Id;
@@ -81,11 +75,9 @@ namespace monitor
 
     public class CosmosTweetMedia
     {
-        public string Thumbnail {get; set;}
-        public string Url {get;set;}
+        public string? Thumbnail {get; set;}
+        public string? Url {get;set;}
         public string MediaType {get;set;}
-
-        public CosmosTweetMedia() {}
 
         public CosmosTweetMedia(Media media)
         {
