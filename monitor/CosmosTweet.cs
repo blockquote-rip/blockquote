@@ -32,6 +32,10 @@ namespace monitor
                 return LastUpdated.AddDays(7);
         }
 
+        public CosmosTweet() {
+            id = string.Empty;
+        }
+
         public CosmosTweet(Tweet tweet)
         {
             id = tweet.Id;
@@ -57,11 +61,13 @@ namespace monitor
 
     public class CosmosTweetUser
     {
-        public string Id { get; set; }
-        public string Name {get; set;}
-        public string ScreenName {get; set;}
-        public string ProfileImageUrl {get; set;}
+        public string Id { get; set; } = string.Empty;
+        public string Name {get; set;} = string.Empty;
+        public string ScreenName {get; set;} = string.Empty;
+        public string ProfileImageUrl {get; set;} = string.Empty;
         public bool Verified {get;set;}
+
+        public CosmosTweetUser() {}
 
         public CosmosTweetUser(User user)
         {
@@ -77,8 +83,9 @@ namespace monitor
     {
         public string? Thumbnail {get; set;}
         public string? Url {get;set;}
-        public string MediaType {get;set;}
+        public string MediaType {get;set;} = TwitterSharp.Response.RMedia.MediaType.Photo.ToString();
 
+        public CosmosTweetMedia() {}
         public CosmosTweetMedia(Media media)
         {
             Url = media.Url;
