@@ -50,16 +50,7 @@ class Program
             {
                 Console.WriteLine($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
                 var tweetThread = await GetTweetThread(tweet.Id, client);
-                // Debugging output
-                var cnt = 0;
-                while(tweetThread != null)
-                {
-                    Console.Write("\n");
-                    for(var n = 0; n < cnt; n++) Console.Write("    ");
-                    Console.WriteLine($"{tweetThread.CreatedBy.ScreenName}: {tweetThread?.Text}");
-                    cnt++;
-                    tweetThread = tweetThread?.InReplyTo ?? tweetThread?.QuotedTweet;
-                }
+                await UpsertThread(tweetThread);
             },
             new TweetSearchOptions
             {
@@ -83,28 +74,7 @@ class Program
         Console.WriteLine("\nDone.");
     }
 
-    public static string GetBearerToken()
-    {
-        var result = System.Environment.GetEnvironmentVariable(_BearerTokenKey, EnvironmentVariableTarget.User);
-
-        if(string.IsNullOrWhiteSpace(result))
-        {
-            // We didn't find it right in the ENV, build up a config and see if we can suck it out of a secret vault.
-            var builder = new ConfigurationBuilder()
-                .AddUserSecrets<Program>();
-            
-            var configurationRoot = builder.Build();
-
-            result = configurationRoot[_BearerTokenKey];
-            
-            if(string.IsNullOrWhiteSpace(result))
-            {
-                throw new Exception($"Could not find a value for the key \"{_BearerTokenKey}\"");
-            }
-        }
-
-        return result;
-    }
+    public static string? GetBearerToken() => EnvHelper.GetEnv(_BearerTokenKey);
 
     private static async Task<CosmosTweet?> GetTweetThread(string? tweetId, TwitterClient client, uint depth = 0)
         {
@@ -142,13 +112,38 @@ class Program
 
         private static async Task<Container> GetDbContainer()
         {
-            var cosmosClient = new CosmosClient(Environment.GetEnvironmentVariable("CosmosDbUrl"), Environment.GetEnvironmentVariable("CosmosDbKey"));
-            var dbResp = await cosmosClient.CreateDatabaseIfNotExistsAsync(Environment.GetEnvironmentVariable("CosmosDbId"));
+            var secrets = new CosmosSecrets();
+            var cosmosClient = new CosmosClient(secrets.CosmosDbUrl, secrets.CosmosDbKey);
+            var dbResp = await cosmosClient.CreateDatabaseIfNotExistsAsync(secrets.CosmosDbId);
             var db = dbResp.Database;
 
-            var containerResp = await db.CreateContainerIfNotExistsAsync(Environment.GetEnvironmentVariable("CosmosDbContainer"), "/id");
+            var containerResp = await db.CreateContainerIfNotExistsAsync(secrets.CosmosDbContainer, "/id");
             var container = containerResp.Container;
 
             return container;
+        }
+
+        private static async Task UpsertThread(CosmosTweet? thread)
+        {
+            // Debugging output
+            var cnt = 0;
+            var curTweet = thread;
+            while(curTweet != null)
+            {
+                Console.Write("\n");
+                for(var n = 0; n < cnt; n++) Console.Write("    ");
+                Console.WriteLine($"{curTweet.CreatedBy.ScreenName}: {curTweet?.Text}");
+                cnt++;
+                curTweet = curTweet?.InReplyTo ?? curTweet?.QuotedTweet;
+            }
+            // End Debugging
+            
+            if(thread?.QuotedTweet != null)
+			{
+				var db = await GetDbContainer();
+				Console.Write($"\nUpserting tweet {thread.id}... ");
+				var resp = await db.UpsertItemAsync<CosmosTweet>(thread);
+				Console.Write($"{resp.StatusCode}\n");
+			}
         }
 }
