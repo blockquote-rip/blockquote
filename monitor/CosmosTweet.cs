@@ -89,8 +89,8 @@ namespace monitor
 
         public CosmosTweetMedia(Media media)
         {
-            Thumbnail = media.PreviewImageUrl;
             Url = media.Url;
+            Thumbnail = media.PreviewImageUrl ?? media.Url;
             MediaType = media.Type?.ToString() ?? TwitterSharp.Response.RMedia.MediaType.Photo.ToString();
         }
     }
