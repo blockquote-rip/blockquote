@@ -41,9 +41,10 @@ class Program
         var subs = await client.GetInfoTweetStreamAsync();
         Console.WriteLine("Subscriptions: " + string.Join("\n", subs.Select(x => x.Id + " " + x.Value.ToString())));
 
+        Console.WriteLine("Waiting for tweets...");
         // NextTweetStreamAsync will continue to run in background
         // Squelching async not awaited warning with a "discard"
-        _ = Task.Run(async () =>
+        await Task.Run(async () =>
         {
             // Take in parameter a callback called for each new tweet
             // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
@@ -59,18 +60,16 @@ class Program
             });
         });
 
-        // Add new high frequent rule after the stream started. No disconnection needed.
-        // await client.AddTweetStreamAsync(new TwitterSharp.Request.StreamRequest( Expression.Author("Every3Minutes"), "Frequent"));
+        // Debugging with a timeout.
+        // Console.Write("\n");
+        // var secondsLeft = 60 * 8;
 
-        Console.Write("\n");
-        var secondsLeft = 60 * 8;
-
-        while(secondsLeft > 0)
-        {
-            Console.Write($"\rWaiting {secondsLeft.ToString().PadLeft(4, '0')} seconds for tweets to come in.");
-            await Task.Delay(1000);
-            secondsLeft--;
-        }
+        // while(secondsLeft > 0)
+        // {
+        //     Console.Write($"\rWaiting {secondsLeft.ToString().PadLeft(4, '0')} seconds for tweets to come in.");
+        //     await Task.Delay(1000);
+        //     secondsLeft--;
+        // }
 
         Console.WriteLine("\nDone.");
     }
