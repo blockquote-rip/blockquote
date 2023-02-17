@@ -9,6 +9,7 @@ namespace monitor;
 class Program
 {
     private static string _BearerTokenKey = "TwitterV2Bearer";
+    private static string _ExpressionKey = "TwitterApiRuleExpression";
     static async Task Main(string[] args)
     {
         Console.WriteLine("Getting bearer token...");
@@ -16,12 +17,9 @@ class Program
 
         Console.WriteLine("Creating Twitter client...");
         var client = new TwitterSharp.Client.TwitterClient(bearer);
-        
+
         Console.WriteLine("Building monitoring request...");
-        var expr = Expression.IsQuote().And(
-            Expression.Author("michaelmalice")
-            .Or(Expression.Author("MirrorReaderBot"))
-        );
+        var expr = Expression.Parse(GetRuleExpression());
         Console.WriteLine($"\tDesired expression is: {expr.ToString()}");
 
         // Check what our current filters are
@@ -75,6 +73,7 @@ class Program
     }
 
     public static string? GetBearerToken() => EnvHelper.GetEnv(_BearerTokenKey);
+    public static string? GetRuleExpression() => EnvHelper.GetEnv(_ExpressionKey);
 
     private static async Task<CosmosTweet?> GetTweetThread(string? tweetId, TwitterClient client, uint depth = 0)
         {
