@@ -48,7 +48,7 @@ class Program
             // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
             await client.NextTweetStreamAsync(async (tweet) =>
             {
-                Console.WriteLine($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
+                Console.WriteLine($"\n{DateTime.Now}\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
                 var tweetThread = await GetTweetThread(tweet.Id, client);
                 await UpsertThread(tweetThread);
             },
