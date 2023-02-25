@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
+using Blockquote.Models;
 
 namespace api
 {
@@ -22,7 +23,13 @@ namespace api
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
 
-            response.WriteString("Welcome to Azure Functions!");
+            // This one comes from a Value entry in the local.settings.json file
+            var name = EnvHelper.GetEnv("PersonName", false);
+
+            // This one comes from our secrets file.
+            var rule = EnvHelper.GetEnv("TwitterApiRuleExpression", false);
+
+            response.WriteString($"Welcome to Azure Functions!\n\nName: {name}\n\nRule: {rule}");
 
             return response;
         }

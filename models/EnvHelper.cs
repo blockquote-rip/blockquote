@@ -10,8 +10,13 @@ namespace Blockquote.Models
 		///<summary>Attempts to pull values from the environment.  If no matching environment values is found it will attempt to find the value in user-secrets.</summary>
 		public static string? GetEnv(string key, bool required = true)
 		{
-			// Check for a matching environment variable.
+			// Check for a matching environment variable from a secrets file.
 			var result = System.Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.User);
+			
+			// Or, if running a function app out of the envs created from local.settings.json import in a function app.
+			result = string.IsNullOrWhiteSpace(result)
+				? System.Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.Process)
+				: result;
 
 			// If we didn't find an environment variable reach into user-secrets.
 			if (string.IsNullOrWhiteSpace(result))
