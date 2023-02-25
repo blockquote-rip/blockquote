@@ -16,47 +16,66 @@ namespace api
             _logger = loggerFactory.CreateLogger<CosmosTweetsController>();
         }
 
-        [Function("CosmosTweetsController")]
-        public HttpResponseData Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequestData req)
-        {
-            _logger.LogInformation("C# HTTP trigger function processed a request.");
-
-            var response = req.CreateResponse(HttpStatusCode.OK);
-            response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
-
-            // This one comes from a Value entry in the local.settings.json file
-            var name = EnvHelper.GetEnv("PersonName", false);
-
-            // This one comes from our secrets file.
-            var rule = EnvHelper.GetEnv("TwitterApiRuleExpression", false);
-
-            response.WriteString($"Welcome to Azure Functions!\n\nName: {name}\n\nRule: {rule}");
-
-            return response;
-        }
-
         [Function("GetTweet")]
 		public static async Task<HttpResponseData> Get([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets/{tweetId}")] HttpRequestData req, string tweetId, ILogger log)
 		{
 			try
-			{
-				var tweet = await CosmosHelper.GetTweetAsync(tweetId);
-                var success = req.CreateResponse(HttpStatusCode.OK);
-                success.Headers.Add("Content-Type", "text/json; charset=utf-8");
+            {
+                var tweet = await CosmosHelper.GetTweetAsync(tweetId);
+                return await JsonResultFromObject(req, tweet);
+            }
+            catch (Exception ex)
+            {
+                return await ErrorResultFromException(req, ex);
+            }
+        }
 
-                var tweetJson = JsonSerializer.Serialize(tweet);
-                await success.WriteStringAsync(tweetJson);
-                
-                return success;
+        [Function("List")]
+		public static async Task<HttpResponseData> List([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets")] HttpRequestData req, ILogger log)
+		{
+			try
+			{
+				var resultsPerPage = 25;
+
+                // Determine the requested page, if "page" was provided in the query string.
+                var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+                var pageString = query["page"];
+				int.TryParse(pageString, out int page);
+
+				// If a page was not provided, the int.TryParse() will have resulted in 0
+                // Default to 1 if no (valid integer) page was provided.
+                log.LogInformation($"Page resolved to {page}.");
+				page = page < 1 ? 1 : page;
+				
+
+				var results = await CosmosHelper.GetTweetsPagedAsync(page, resultsPerPage);
+
+                return await JsonResultFromObject(req, results);
 			}
 			catch (Exception ex)
 			{
-				var error = req.CreateResponse(HttpStatusCode.BadRequest);
-                error.Headers.Add("Content-Type", "text/plain; charset=utf-8");
-                await error.WriteStringAsync($"Unexpected error:\n{ex.Message}");
-
-                return error;
+				return await ErrorResultFromException(req, ex);
 			}
 		}
+
+        private static async Task<HttpResponseData> JsonResultFromObject(HttpRequestData req, object obj)
+        {
+            var success = req.CreateResponse(HttpStatusCode.OK);
+            success.Headers.Add("Content-Type", "application/json; charset=utf-8");
+
+            var objJson = JsonSerializer.Serialize(obj);
+            await success.WriteStringAsync(objJson);
+
+            return success;
+        }
+
+        private static async Task<HttpResponseData> ErrorResultFromException(HttpRequestData req, Exception ex)
+        {
+            var error = req.CreateResponse(HttpStatusCode.BadRequest);
+            error.Headers.Add("Content-Type", "text/plain; charset=utf-8");
+            await error.WriteStringAsync($"Unexpected error:\n{ex.Message}");
+
+            return error;
+        }
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Linq;
 
 namespace Blockquote.Models
 {
@@ -45,6 +46,28 @@ namespace Blockquote.Models
 			var response = await db.ReadItemAsync<CosmosTweet>(tweetId, pk);
 
 			return response.Resource;
+		}
+
+		public static async Task<List<CosmosTweet>> GetTweetsPagedAsync(int page, int resultsPerPage)
+		{
+			var results = new List<CosmosTweet>();
+			var db = await GetDbContainer();
+			var iterator = db.GetItemLinqQueryable<CosmosTweet>()
+				.Where(t => t.Deleted)
+				.OrderByDescending(t => t.LastUpdated)
+				.Skip(resultsPerPage * (page-1))
+				.Take(resultsPerPage)
+				.ToFeedIterator();
+			
+			using(iterator)
+			{
+				while(iterator.HasMoreResults)
+				{
+					results.AddRange(await iterator.ReadNextAsync());
+				}
+			}
+
+			return results;
 		}
 	}
 }
