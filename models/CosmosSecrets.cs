@@ -1,4 +1,4 @@
-namespace monitor
+namespace Blockquote.Models
 {
 	public class CosmosSecrets
 	{

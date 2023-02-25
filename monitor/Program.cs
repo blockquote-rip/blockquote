@@ -1,11 +1,11 @@
-﻿using Microsoft.Azure.Cosmos;
-using Microsoft.Extensions.Configuration;
+﻿using Blockquote.Models;
+using Microsoft.Azure.Cosmos;
 using TwitterSharp.Client;
 using TwitterSharp.Request.AdvancedSearch;
 using TwitterSharp.Request.Option;
 using TwitterSharp.Rule;
 
-namespace monitor;
+namespace Blockquote.Monitor;
 class Program
 {
     private static string _BearerTokenKey = "TwitterV2Bearer";

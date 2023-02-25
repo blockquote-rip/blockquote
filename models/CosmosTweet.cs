@@ -2,7 +2,7 @@ using TwitterSharp.Response.RMedia;
 using TwitterSharp.Response.RTweet;
 using TwitterSharp.Response.RUser;
 
-namespace monitor
+namespace Blockquote.Models
 {
     public class CosmosTweet
     {
