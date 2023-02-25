@@ -17,7 +17,7 @@ namespace api
         }
 
         [Function("GetTweet")]
-		public static async Task<HttpResponseData> Get([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets/{tweetId}")] HttpRequestData req, string tweetId, ILogger log)
+		public async Task<HttpResponseData> Get([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets/{tweetId}")] HttpRequestData req, string tweetId)
 		{
 			try
             {
@@ -31,7 +31,7 @@ namespace api
         }
 
         [Function("List")]
-		public static async Task<HttpResponseData> List([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets")] HttpRequestData req, ILogger log)
+		public async Task<HttpResponseData> List([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets")] HttpRequestData req)
 		{
 			try
 			{
@@ -44,7 +44,7 @@ namespace api
 
 				// If a page was not provided, the int.TryParse() will have resulted in 0
                 // Default to 1 if no (valid integer) page was provided.
-                log.LogInformation($"Page resolved to {page}.");
+                _logger.LogInformation($"Page resolved to {page}.");
 				page = page < 1 ? 1 : page;
 				
 
