@@ -15,4 +15,8 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../models/models.csproj" />
+  </ItemGroup>
 </Project>

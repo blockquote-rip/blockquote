@@ -37,5 +37,14 @@ namespace Blockquote.Models
 			var resp = await db.UpsertItemAsync<CosmosTweet>(thread);
 			Console.Write($"{resp.StatusCode}\n");
 		}
+
+		public static async Task<CosmosTweet> GetTweetAsync(string tweetId)
+		{
+			var db = await CosmosHelper.GetDbContainer();
+			var pk = new PartitionKey(tweetId);
+			var response = await db.ReadItemAsync<CosmosTweet>(tweetId, pk);
+
+			return response.Resource;
+		}
 	}
 }
