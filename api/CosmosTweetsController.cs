@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Blockquote.Models;
+using System.Text.Json;
 
 namespace api
 {
@@ -33,5 +34,29 @@ namespace api
 
             return response;
         }
+
+        [Function("GetTweet")]
+		public static async Task<HttpResponseData> Get([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "tweets/{tweetId}")] HttpRequestData req, string tweetId, ILogger log)
+		{
+			try
+			{
+				var tweet = await CosmosHelper.GetTweetAsync(tweetId);
+                var success = req.CreateResponse(HttpStatusCode.OK);
+                success.Headers.Add("Content-Type", "text/json; charset=utf-8");
+
+                var tweetJson = JsonSerializer.Serialize(tweet);
+                await success.WriteStringAsync(tweetJson);
+                
+                return success;
+			}
+			catch (Exception ex)
+			{
+				var error = req.CreateResponse(HttpStatusCode.BadRequest);
+                error.Headers.Add("Content-Type", "text/plain; charset=utf-8");
+                await error.WriteStringAsync($"Unexpected error:\n{ex.Message}");
+
+                return error;
+			}
+		}
     }
 }
