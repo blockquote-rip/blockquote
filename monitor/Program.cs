@@ -1,5 +1,4 @@
 ﻿using Blockquote.Models;
-using Microsoft.Azure.Cosmos;
 using TwitterSharp.Client;
 using TwitterSharp.Request.AdvancedSearch;
 using TwitterSharp.Request.Option;
@@ -50,7 +49,14 @@ class Program
             {
                 Console.WriteLine($"\n{DateTime.Now}\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
                 var tweetThread = await GetTweetThread(tweet.Id, client);
-                await UpsertThread(tweetThread);
+                if(tweetThread?.QuotedTweet != null)
+                {
+                    await CosmosHelper.UpsertThread(tweetThread);
+                }
+                else
+                {
+                    Console.WriteLine("\tQuoted tweet was null, so not adding to database.");
+                }
             },
             new TweetSearchOptions
             {
@@ -76,73 +82,36 @@ class Program
     public static string? GetRuleExpression() => EnvHelper.GetEnv(_ExpressionKey);
 
     private static async Task<CosmosTweet?> GetTweetThread(string? tweetId, TwitterClient client, uint depth = 0)
-        {
-            CosmosTweet? result = null;
+    {
+        CosmosTweet? result = null;
 
-            if(tweetId == null)
+        if(tweetId == null)
+        {
+            return result;
+        }
+        else {	
+            try
             {
-                return result;
-            }
-            else {	
-                try
+                var options = new TweetSearchOptions
                 {
-                    var options = new TweetSearchOptions
-                    {
-                        TweetOptions = new []{ TweetOption.Created_At, TweetOption.Referenced_Tweets, TweetOption.Attachments, TweetOption.Entities },
-                        UserOptions = new []{ UserOption.Created_At, UserOption.Profile_Image_Url, UserOption.Verified },
-                        MediaOptions = new []{ MediaOption.Url, MediaOption.Preview_Image_Url }
-                    };
+                    TweetOptions = new []{ TweetOption.Created_At, TweetOption.Referenced_Tweets, TweetOption.Attachments, TweetOption.Entities },
+                    UserOptions = new []{ UserOption.Created_At, UserOption.Profile_Image_Url, UserOption.Verified },
+                    MediaOptions = new []{ MediaOption.Url, MediaOption.Preview_Image_Url }
+                };
 
-                    var tweet = await client.GetTweetAsync(tweetId, options);
-                    result = new CosmosTweet(tweet);
-                    // Finding the quoted tweet or the tweet it was replying to has to be found with some linq,
-                    // And the CosmosTweet constructor takes care of that for us.
-                    result.QuotedTweet = await GetTweetThread(result.QuotedTweet?.id, client, depth+1);
-                    result.InReplyTo = await GetTweetThread(result.InReplyTo?.id, client);
-                }
-                catch(Exception ex)
-                {
-                    await Console.Error.WriteLineAsync($"{ex.GetType().Name} - {ex.Message}\n{ex.InnerException?.Message}");
-                }
-
-                return result;
+                var tweet = await client.GetTweetAsync(tweetId, options);
+                result = new CosmosTweet(tweet);
+                // Finding the quoted tweet or the tweet it was replying to has to be found with some linq,
+                // And the CosmosTweet constructor takes care of that for us.
+                result.QuotedTweet = await GetTweetThread(result.QuotedTweet?.id, client, depth+1);
+                result.InReplyTo = await GetTweetThread(result.InReplyTo?.id, client);
             }
-        }
-
-        private static async Task<Container> GetDbContainer()
-        {
-            var secrets = new CosmosSecrets();
-            var cosmosClient = new CosmosClient(secrets.CosmosDbUrl, secrets.CosmosDbKey);
-            var dbResp = await cosmosClient.CreateDatabaseIfNotExistsAsync(secrets.CosmosDbId);
-            var db = dbResp.Database;
-
-            var containerResp = await db.CreateContainerIfNotExistsAsync(secrets.CosmosDbContainer, "/id");
-            var container = containerResp.Container;
-
-            return container;
-        }
-
-        private static async Task UpsertThread(CosmosTweet? thread)
-        {
-            // Debugging output
-            var cnt = 0;
-            var curTweet = thread;
-            while(curTweet != null)
+            catch(Exception ex)
             {
-                Console.Write("\n");
-                for(var n = 0; n < cnt; n++) Console.Write("    ");
-                Console.WriteLine($"{curTweet.CreatedBy?.ScreenName}: {curTweet?.Text}");
-                cnt++;
-                curTweet = curTweet?.InReplyTo ?? curTweet?.QuotedTweet;
+                await Console.Error.WriteLineAsync($"{ex.GetType().Name} - {ex.Message}\n{ex.InnerException?.Message}");
             }
-            // End Debugging
-            
-            if(thread?.QuotedTweet != null)
-			{
-				var db = await GetDbContainer();
-				Console.Write($"\nUpserting tweet {thread.id}... ");
-				var resp = await db.UpsertItemAsync<CosmosTweet>(thread);
-				Console.Write($"{resp.StatusCode}\n");
-			}
+
+            return result;
         }
+    }
 }
