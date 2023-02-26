@@ -18,14 +18,14 @@ namespace api
         }
 
         [Function("LookForOrphans")]
-        public async Task LookForOrphans([TimerTrigger("0 */5 * * * *")] MyInfo myTimer)
+        public async Task LookForOrphans([TimerTrigger("*/30 * * * * *")] MyInfo myTimer)
         {
             try
             {
                 _logger.LogInformation($"{nameof(LookForOrphans)} started.");
                 var container = await CosmosHelper.GetDbContainer();
                 
-                int tweetsToTake = 25;
+                int tweetsToTake = 50;
                 var dbTweets = await CosmosHelper.GetTweetsToCheckAsync(tweetsToTake);
                 _logger.LogInformation($"\tGot {dbTweets.Count} tweets from the database.");
 
@@ -35,14 +35,23 @@ namespace api
                     return;
                 }
 
-                var apiTweets = await GetTweetsFromTwitterApi(dbTweets);
+                // var apiTweets = await GetTweetsFromTwitterApi(dbTweets);
+                var apiTweets = await GetTweetsFromTwitterApiBatched(dbTweets);
+                _logger.LogInformation($"Got {apiTweets.Count} from the twitter API.");
                 if(dbTweets.Count != apiTweets.Count())
                 {
                     _logger.LogInformation($"{dbTweets.Count} db tweets vs. {apiTweets.Count()} API tweets");
+                    var dbQts = dbTweets.Where(d => d.QuotedTweet != null).Select(d => d.QuotedTweet!.id);
+                    _logger.LogInformation($"\tdbQts: {string.Join(", ", dbQts)}");
+                    var apiQts = apiTweets.Select(a => a.Id).ToList();
+                    _logger.LogInformation($"\tapiQts: {string.Join(", ", apiQts)}");
+                    var missingQts = dbQts.Except(apiQts);
+                    throw new Exception($"Y THO? {string.Join(", ", missingQts)}");
                 }
 
                 _logger.LogInformation("Updating db records...");
-                await UpsertCosmosTweets(dbTweets, apiTweets);
+                // await UpsertCosmosTweets(dbTweets, apiTweets);
+                await UpsertCosmostTweetsBatched(dbTweets, apiTweets);
 
                 _logger.LogInformation("LookForOrphans finished.");
             }
@@ -52,126 +61,78 @@ namespace api
             }
         }
 
-        ///<summary>Takes a collection of type T and a Func that takes T and returns a Task.
-        ///Then runs those Tasks in batches of batchSize at a time.</summary>
-        private static async Task BatchRunTasks<T>(IEnumerable<T> items, Func<T, Task> taskGenerator, ILogger logger, string taskDescription, int batchSize = 3)
+        private Func<CosmosTweet, string> CosmosTweetDescriptionGenerator = (ct => $"{nameof(CosmosTweet)} id: {ct.id} qt: {ct.QuotedTweet?.id}");
+
+        private async Task<List<Tweet>> GetTweetsFromTwitterApiBatched(List<CosmosTweet> dbTweets)
         {
-            var completed = 0;
-            var keepLooping = false;
-
-            do
-                {
-                    // Get a batch of dbTweets to review.
-                    var batch = items
-                        .Skip(completed)
-                        .Take(batchSize)
-                        .ToList();
-                    
-                    // Build a List of tasks to update all the dbTweets in our batch.
-                    var tasks = batch
-                        .Select(b => taskGenerator(b))
-                        .ToList();
-
-                    // Wait for the entire batch's tasks to complete.
-                    await Task.WhenAll(tasks);
-
-                    // Log errors for tasks failed
-                    tasks.Where(t => t.IsCompletedSuccessfully == false)
-                        .ToList()
-                        .ForEach(t => logger.LogError($"\tA {taskDescription} task did not complete successfully."));
-                    tasks.Where(t => t.Exception != null)
-                        .ToList()
-                        .ForEach(t => logger.LogError($"{nameof(BatchRunTasks)} update failed.", t.Exception));
-
-
-                    // Get ready for the next pass
-                    completed += batch.Count;
-                    keepLooping = batch.Count > 0;
-                    if(keepLooping)
-                    {
-                        logger.LogInformation($"\t{nameof(BatchRunTasks)} completed {completed} of {items.Count()} {taskDescription} tasks.");
-                        await Task.Delay(1000);
-                    }
-                }
-                while(keepLooping);
-        }
-
-        private async Task<List<Tweet>> GetTweetsFromTwitterApi(List<CosmosTweet> dbTweets)
-        {
-            var quotedTweetIds = dbTweets
-                .Where(t => t.QuotedTweet != null)
-                .Select(t => t.QuotedTweet?.id)
-                .ToList();
-
-            _logger.LogInformation($"Fetching {quotedTweetIds.Count} tweets quoted tweets from API...");
-            var bearer = EnvHelper.GetBearerToken();
-            var userclient = new TwitterSharp.Client.TwitterClient(bearer);
-            
-            // We'll populate apiTweets using BatRunTasks().
-            // Do do that we'll need quotedTweetIds, and a Func that given a tweet ID returns a task.
-            var apiTweets = new List<Tweet>();
-            var fetchTweetsFromTwitterApiTaskGenerator = new Func<string?, Task>(async s => {
-                var tweet = await userclient.GetTweetAsync(s);
-                apiTweets.Add(tweet);
-            });
-
             try
             {
-                await BatchRunTasks(quotedTweetIds, fetchTweetsFromTwitterApiTaskGenerator, _logger, "FetchTweetsFromTwitter", 3);
-            }
-            catch(TwitterException ex)
-            {
-                _logger.LogError($"Encountered {ex.GetType().Name} error while bulk-fetching tweets from Twitter API.  {ex.Title} {ex.Message}", ex);
-                ex.Errors.ToList().ForEach(error => _logger.LogError($"\tError from Twitter API Title: {error.Title} Code: {error.Code} Type: {error.Type} Value: {error.Value}"));
+                _logger.LogInformation($"Fetching quote-tweets quoted tweets from API...");
+                var bearer = EnvHelper.GetBearerToken();
+                var userclient = new TwitterSharp.Client.TwitterClient(bearer);
+
+                var tweetTaskGenerator = new Func<CosmosTweet, Task<Tweet>>(async ct => {
+                    try
+                    {
+                        var quotedTweetId = ct.QuotedTweet?.id;
+                        _logger.LogInformation($"\tFetching {CosmosTweetDescriptionGenerator(ct)}...");
+                        var quotedTweet = await userclient.GetTweetAsync(quotedTweetId);
+                        return quotedTweet;
+                    }
+                    catch(TwitterException ex)
+                    {
+                        // There is a type of error you get for a tweet that is actually no longer available.
+                        _logger.LogWarning($"Error Fetching {CosmosTweetDescriptionGenerator(ct)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors.Count()}){string.Join("\n\t\t", ex.Errors.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList())}");
+                        // Squelch "Not found" errors, returning an empty CosmosTweet, otherwise throw.
+                        if(ex.Errors.Any(e => e.Type == "https://api.twitter.com/2/problems/resource-not-found"))
+                        {
+                            _logger.LogInformation($"Quoted tweet not found. {CosmosTweetDescriptionGenerator(ct)}.");
+                            return new Tweet();
+                        }
+                        throw;
+                    }
+                });
+
                 
-                var notFoundError = ex.Errors.FirstOrDefault(e => e.Type == "https://api.twitter.com/2/problems/resource-not-found");
+                var batcher = new BatchExecutor<CosmosTweet, Tweet>(5, tweetTaskGenerator, CosmosTweetDescriptionGenerator);
+                var results = await batcher.RunFor(dbTweets);
 
-                if(notFoundError != null)
-                {
-                    _logger.LogError($"\tThe tweet {notFoundError.Value} returned a {notFoundError.Title} error.");
-                }
-                else
-                {
-                    throw;
-                }
+                return results;
             }
-            catch(AggregateException aex)
+            catch
             {
-                _logger.LogError("Caught an AggregateException.", aex);
+                _logger.LogError($"Errors encountered when running {nameof(GetTweetsFromTwitterApiBatched)}()");
                 throw;
             }
-            catch(Exception ex)
-            {
-                _logger.LogWarning($"Encountered error bulk-fetching tweets from Twitter API. {ex.GetType()} {ex.Message}");
-                throw;
-            }
-
-            if(apiTweets.Count == 0)
-            {
-                var ex = new Exception("Got 0 tweets from the Twitter API. Presumably we've messed up our query.");
-                _logger.LogWarning(ex.Message, ex);
-                throw ex;
-            }
-
-            return apiTweets;
         }
 
-        private async Task UpsertCosmosTweets(List<CosmosTweet> dbTweets, List<Tweet> apiTweets)
+        private async Task UpsertCosmostTweetsBatched(List<CosmosTweet> dbTweets, List<Tweet> apiTweets)
         {
-            var started = DateTimeOffset.Now;
-            var upsertTweetTaskGenerator = new Func<CosmosTweet, Task>(async tweet => {
-                tweet.LastUpdated = DateTimeOffset.Now;
-                var hasMatch = apiTweets.Any(apiTweet => apiTweet.Id == tweet.QuotedTweet?.id);
-                if(hasMatch == false)
-                {
-                    tweet.Deleted = true;
-                }
-                
-                await CosmosHelper.UpsertThread(tweet);
-            });
-            
-            await BatchRunTasks(dbTweets, upsertTweetTaskGenerator, _logger, "UpsertTweet", 5);
-            _logger.LogInformation($"Updated {dbTweets.Count} tweets in {(DateTimeOffset.Now - started).TotalSeconds} seconds.");
+            try
+            {
+                var upsertTweetTaskGenerator = new Func<CosmosTweet, Task<CosmosTweet>>(async tweet => {
+                    _logger.LogInformation($"\tUpdating {CosmosTweetDescriptionGenerator(tweet)}...");
+                    tweet.LastUpdated = DateTimeOffset.Now;
+                    var hasMatch = apiTweets.Any(apiTweet => apiTweet.Id == tweet.QuotedTweet?.id);
+                    if(hasMatch == false)
+                    {
+                        _logger.LogInformation($"\t\tQuoted tweet not found, but skipping upserting of {CosmosTweetDescriptionGenerator(tweet)} while testing.");
+                        return tweet;
+                        tweet.Deleted = true;
+                    }
+                    
+                    await CosmosHelper.UpsertThread(tweet);
+                    return tweet;
+                });
+
+                var batcher = new BatchExecutor<CosmosTweet, CosmosTweet>(5, upsertTweetTaskGenerator, CosmosTweetDescriptionGenerator);
+                await batcher.RunFor(dbTweets);
+            }
+            catch
+            {
+                _logger.LogError($"Errors encountered when running {nameof(UpsertCosmostTweetsBatched)}()");
+                throw;
+            }
         }
     }
 
