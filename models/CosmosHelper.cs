@@ -61,8 +61,6 @@ namespace Blockquote.Models
             }
         }
 
-        private static Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> DefaultOrderBy = (t => t.OrderByDescending(o => o.CreatedAt));
-
         public static async Task<List<CosmosTweet>> GetTweetsAsync(
             Expression<Func<CosmosTweet, bool>> whereClause,
             Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderByClause,
@@ -107,7 +105,7 @@ namespace Blockquote.Models
             {
                 // Build the values to pass to GetTweetsAsync()
                 Expression<Func<CosmosTweet, bool>> query = (t => t.Deleted);
-                Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderBy = (t => t.OrderByDescending(o => o.LastUpdated));
+                Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderBy = (t => t.OrderByDescending(o => o.CreatedAt));
                 int skip = resultsPerPage * (page - 1);
                 
                 var results = await GetTweetsAsync(query, orderBy, skip, resultsPerPage);
