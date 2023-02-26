@@ -75,20 +75,28 @@ namespace api
                     try
                     {
                         var quotedTweetId = ct.QuotedTweet?.id;
-                        _logger.LogInformation($"\tFetching {CosmosTweetDescriptionGenerator(ct)}...");
+                        // _logger.LogInformation($"\tFetching {CosmosTweetDescriptionGenerator(ct)}...");
                         var quotedTweet = await userclient.GetTweetAsync(quotedTweetId);
                         return quotedTweet;
                     }
                     catch(TwitterException ex)
                     {
                         // There is a type of error you get for a tweet that is actually no longer available.
-                        _logger.LogWarning($"Error Fetching {CosmosTweetDescriptionGenerator(ct)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors.Count()}){string.Join("\n\t\t", ex.Errors.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList())}");
+                        _logger.LogWarning($"Error Fetching {CosmosTweetDescriptionGenerator(ct)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors?.Count() ?? 0}){string.Join("\n\t\t", ex.Errors?.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList() ?? new List<string>())}");
                         // Squelch "Not found" errors, returning an empty CosmosTweet, otherwise throw.
-                        if(ex.Errors.Any(e => e.Type == "https://api.twitter.com/2/problems/resource-not-found"))
+                        if(ex.Errors?.Any(e => e.Type == "https://api.twitter.com/2/problems/resource-not-found") ?? false)
                         {
-                            _logger.LogInformation($"Quoted tweet not found. {CosmosTweetDescriptionGenerator(ct)}.");
+                            _logger.LogWarning($"Quoted tweet not found. {CosmosTweetDescriptionGenerator(ct)}.");
                             return new Tweet();
                         }
+                        
+                        // Some "Not authorized" errors indicatd an account maybe suspended or privated.
+                        if(ex.Errors?.Any(e => e.Type == "https://api.twitter.com/2/problems/not-authorized-for-resource") ?? false)
+                        {
+                            _logger.LogWarning($"Authorization error fetching quoted tweet, Account is protected, suspended, or deleted. {CosmosTweetDescriptionGenerator(ct)}.");
+                            return new Tweet();
+                        }
+
                         throw;
                     }
                 });
@@ -111,7 +119,7 @@ namespace api
             try
             {
                 var upsertTweetTaskGenerator = new Func<CosmosTweet, Task<CosmosTweet>>(async tweet => {
-                    _logger.LogInformation($"\tUpdating {CosmosTweetDescriptionGenerator(tweet)}...");
+                    // _logger.LogInformation($"\tUpdating {CosmosTweetDescriptionGenerator(tweet)}...");
                     tweet.LastUpdated = DateTimeOffset.Now;
                     var hasMatch = apiTweets.Any(apiTweet => apiTweet.Id == tweet.QuotedTweet?.id);
                     if(hasMatch == false)
