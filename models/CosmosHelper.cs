@@ -28,24 +28,15 @@ namespace Blockquote.Models
 		public static async Task UpsertThread(CosmosTweet thread)
 		{
 			try
-			{
-				// Debugging output
-				var cnt = 0;
-				var curTweet = thread;
-				while(curTweet != null)
-				{
-					Console.Write("\n");
-					for(var n = 0; n < cnt; n++) Console.Write("    ");
-					Console.WriteLine($"{curTweet.CreatedBy?.ScreenName}: {curTweet?.Text}");
-					cnt++;
-					curTweet = curTweet?.InReplyTo ?? curTweet?.QuotedTweet;
-				}
-				// End Debugging
-				
+			{	
 				var db = await CosmosHelper.GetDbContainer();
-				Console.Write($"\nUpserting tweet {thread.id}... ");
+
 				var resp = await db.UpsertItemAsync<CosmosTweet>(thread);
-				Console.Write($"{resp.StatusCode}\n");
+				
+				if(resp.StatusCode != System.Net.HttpStatusCode.OK)
+				{
+					throw new Exception($"Failed to update database for tweet {thread.id}.  Code {resp.StatusCode}");
+				}
 			}
 			catch(Exception ex)
 			{
