@@ -7,12 +7,11 @@ using TwitterSharp.Rule;
 namespace Blockquote.Monitor;
 class Program
 {
-    private static string _BearerTokenKey = "TwitterV2Bearer";
     private static string _ExpressionKey = "TwitterApiRuleExpression";
     static async Task Main(string[] args)
     {
         Console.WriteLine("Getting bearer token...");
-        var bearer = GetBearerToken();
+        var bearer = EnvHelper.GetBearerToken();
 
         Console.WriteLine("Creating Twitter client...");
         var client = new TwitterSharp.Client.TwitterClient(bearer);
@@ -78,7 +77,6 @@ class Program
         Console.WriteLine("\nDone.");
     }
 
-    public static string? GetBearerToken() => EnvHelper.GetEnv(_BearerTokenKey);
     public static string? GetRuleExpression() => EnvHelper.GetEnv(_ExpressionKey);
 
     private static async Task<CosmosTweet?> GetTweetThread(string? tweetId, TwitterClient client, uint depth = 0)

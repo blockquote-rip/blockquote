@@ -6,6 +6,7 @@ namespace Blockquote.Models
 	{
 		///<summary>The UserSecretsId we created in monitor.csproj  We'll be using these same secrets in future related projects.</summary>
 		private const string SecretsId = "81b6de51-b515-4a00-8b96-78019839167c";
+		private static string _BearerTokenKey = "TwitterV2Bearer";
 
 		///<summary>Attempts to pull values from the environment.  If no matching environment values is found it will attempt to find the value in user-secrets.</summary>
 		public static string? GetEnv(string key, bool required = true)
@@ -37,5 +38,7 @@ namespace Blockquote.Models
 
 			return result;
 		}
+
+		public static string? GetBearerToken() => EnvHelper.GetEnv(_BearerTokenKey);
 	}
 }
