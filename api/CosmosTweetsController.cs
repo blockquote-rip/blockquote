@@ -26,7 +26,7 @@ namespace api
             }
             catch (Exception ex)
             {
-                return await ErrorResultFromException(req, ex);
+                return await ErrorResultFromException(req, ex, _logger);
             }
         }
 
@@ -54,7 +54,7 @@ namespace api
             }
             catch (Exception ex)
             {
-                return await ErrorResultFromException(req, ex);
+                return await ErrorResultFromException(req, ex, _logger);
             }
         }
 
@@ -69,11 +69,14 @@ namespace api
             return success;
         }
 
-        private static async Task<HttpResponseData> ErrorResultFromException(HttpRequestData req, Exception ex)
+        private static async Task<HttpResponseData> ErrorResultFromException(HttpRequestData req, Exception ex, ILogger logger)
         {
+            var errorMessage = $"Unexpected error:\n{ex.Message}";
+            logger.LogError(errorMessage, ex);
+            
             var error = req.CreateResponse(HttpStatusCode.BadRequest);
             error.Headers.Add("Content-Type", "text/plain; charset=utf-8");
-            await error.WriteStringAsync($"Unexpected error:\n{ex.Message}");
+            await error.WriteStringAsync(errorMessage);
 
             return error;
         }
