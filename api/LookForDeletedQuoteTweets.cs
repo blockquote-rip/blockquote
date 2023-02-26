@@ -83,6 +83,13 @@ namespace api
                     {
                         // There is a type of error you get for a tweet that is actually no longer available.
                         _logger.LogWarning($"Error Fetching {CosmosTweetDescriptionGenerator(ct)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors?.Count() ?? 0}){string.Join("\n\t\t", ex.Errors?.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList() ?? new List<string>())}");
+
+                        // Sometimes when we spam the Twitter API we get told to back off.
+                        if(ex.Title == "Too Many Requests")
+                        {
+                            throw new BackOffException();
+                        }
+
                         // Squelch "Not found" errors, returning an empty CosmosTweet, otherwise throw.
                         if(ex.Errors?.Any(e => e.Type == "https://api.twitter.com/2/problems/resource-not-found") ?? false)
                         {
@@ -107,9 +114,9 @@ namespace api
 
                 return results;
             }
-            catch
+            catch(Exception ex)
             {
-                _logger.LogError($"Errors encountered when running {nameof(GetTweetsFromTwitterApiBatched)}()");
+                _logger.LogError($"Errors encountered when running {nameof(GetTweetsFromTwitterApiBatched)}() {ex.GetType().Name} {ex.Message}");
                 throw;
             }
         }

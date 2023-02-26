@@ -7,6 +7,7 @@ namespace api
         private readonly SemaphoreSlim _Semaphore;
         private Func<T, Task<R>> TaskGenerator;
         private Func<T, string> ItemDescriptionGenerator;
+        private bool BackingOff = false;
 
         public BatchExecutor(int concurrentJobs, Func<T, Task<R>> taskGenerator, Func<T, string> itemDescriptionGenerator)
         {
@@ -43,9 +44,18 @@ namespace api
 
             try
             {
+                if(BackingOff)
+                {
+                    throw new Exception("Backoff requested by Twitter API.");
+                }
                 var task = TaskGenerator(input);
                 var result = await task;
                 return result;
+            }
+            catch(BackOffException ex)
+            {
+                BackingOff = true;
+                throw new Exception($"{nameof(RunFor)} {ItemDescriptionGenerator(input)} failed withh error {ex.GetType().Name}", ex);
             }
             catch(ArgumentNullException ex)
             {
@@ -66,5 +76,10 @@ namespace api
                 _Semaphore.Release();
             }
         }
+    }
+
+    public class BackOffException : Exception
+    {
+        public DateTimeOffset Encountered { get; } = DateTimeOffset.Now;
     }
 }
