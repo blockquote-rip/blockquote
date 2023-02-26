@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
 
@@ -60,19 +61,30 @@ namespace Blockquote.Models
             }
         }
 
-        public static async Task<List<CosmosTweet>> GetTweetsPagedAsync(int page, int resultsPerPage)
+        private static Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> DefaultOrderBy = (t => t.OrderByDescending(o => o.CreatedAt));
+
+        public static async Task<List<CosmosTweet>> GetTweetsAsync(
+            Expression<Func<CosmosTweet, bool>> whereClause,
+            Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderByClause,
+            int skip = 0,
+            int take = 25
+        )
         {
             try
             {
                 var results = new List<CosmosTweet>();
                 var db = await GetDbContainer();
-                var iterator = db.GetItemLinqQueryable<CosmosTweet>()
-                    .Where(t => t.Deleted)
-                    .OrderByDescending(t => t.LastUpdated)
-                    .Skip(resultsPerPage * (page-1))
-                    .Take(resultsPerPage)
-                    .ToFeedIterator();
-                
+
+                // Apply whereClause
+                var query = db.GetItemLinqQueryable<CosmosTweet>()
+                        .Where(whereClause);
+                // apply the OrderByClause, skip and take the desired number of records, and invoke ToFeedIterator()
+                var iterator = orderByClause(query)
+                        .Skip(skip)
+                        .Take(take)
+                        .ToFeedIterator();
+                    
+                // Read the results out of iterator
                 using(iterator)
                 {
                     while(iterator.HasMoreResults)
@@ -85,7 +97,43 @@ namespace Blockquote.Models
             }
             catch(Exception ex)
             {
+                throw new Exception($"Error encountered in {nameof(GetTweetsAsync)}. {ex.GetType().Name} {ex.Message}", ex);
+            }
+        }
+
+        public static async Task<List<CosmosTweet>> GetTweetsPagedAsync(int page, int resultsPerPage)
+        {
+            try
+            {
+                // Build the values to pass to GetTweetsAsync()
+                Expression<Func<CosmosTweet, bool>> query = (t => t.Deleted);
+                Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderBy = (t => t.OrderByDescending(o => o.LastUpdated));
+                int skip = resultsPerPage * (page - 1);
+                
+                var results = await GetTweetsAsync(query, orderBy, skip, resultsPerPage);
+
+                return results;
+            }
+            catch(Exception ex)
+            {
                 throw new Exception($"Error encountered attempting to fetch paged tweets page: {page}, resultsPerPage: {resultsPerPage}", ex);
+            }
+        }
+
+        public static async Task<List<CosmosTweet>> GetTweetsToCheckAsync(int tweetsToTake)
+        {
+            try
+            {
+                // Build the values to pass to GetTweetsAsync()
+                Expression<Func<CosmosTweet, bool>> query = (t => t.NextUpdate < DateTimeOffset.Now && t.QuotedTweet != null && t.Deleted == false);
+                Func<IQueryable<CosmosTweet>, IOrderedQueryable<CosmosTweet>> orderBy = (t => t.OrderBy(o => o.LastUpdated));
+
+                var results = await GetTweetsAsync(query, orderBy, 0, tweetsToTake);
+                return results;
+            }
+            catch(Exception ex)
+            {
+                throw new Exception($"Error encountered in {nameof(GetTweetsToCheckAsync)}. tweetsToTake: {tweetsToTake}", ex);
             }
         }
     }

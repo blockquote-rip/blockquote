@@ -25,26 +25,8 @@ namespace api
                 
                 int tweetsToTake = 25;
                 _logger.LogInformation($"Grabbing {tweetsToTake} tweets from the database to refresh...");
-                var iterator = container.GetItemLinqQueryable<CosmosTweet>()
-                    .Where(t => t.NextUpdate < DateTimeOffset.Now && t.QuotedTweet != null && t.Deleted == false)
-                    .OrderBy(t => t.NextUpdate)
-                    .Take(tweetsToTake)
-                    .ToFeedIterator();
                 
-                var dbTweets = new List<CosmosTweet>();
-                using(iterator)
-                {
-                    while(iterator.HasMoreResults)
-                    {
-                        foreach(var tweet in await iterator.ReadNextAsync())
-                        {
-                            if(tweet?.QuotedTweet != null)
-                            {
-                                dbTweets.Add(tweet);
-                            }
-                        }
-                    }
-                }
+                var dbTweets = await CosmosHelper.GetTweetsToCheckAsync(tweetsToTake);
 
                 _logger.LogInformation($"\tGot {dbTweets.Count} tweets from the database.");
 
@@ -56,7 +38,7 @@ namespace api
 
                 var quotedTweetIds = dbTweets
                     .Where(t => t.QuotedTweet != null)
-                    .Select(t => t.QuotedTweet.id)
+                    .Select(t => t.QuotedTweet?.id)
                     .ToList();
 
                 _logger.LogInformation($"Fetching {quotedTweetIds.Count} tweets quoted tweets from API...");
