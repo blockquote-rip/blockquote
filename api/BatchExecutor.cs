@@ -55,7 +55,7 @@ namespace api
             catch(TwitterException ex)
             {
                 // This type of exception has lots of extra data we need to draw.
-                throw new Exception($"{nameof(RunFor)} {ItemDescriptionGenerator(input)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors.Count()}){string.Join("\n\t\t", ex.Errors.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList())}", ex);
+                throw new Exception($"{nameof(RunFor)} {ItemDescriptionGenerator(input)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors?.Count() ?? 0}){string.Join("\n\t\t", ex.Errors?.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList() ?? new List<string>())}", ex);
             }
             catch(Exception ex)
             {
