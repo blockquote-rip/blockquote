@@ -1,3 +1,5 @@
+using TwitterSharp.Client;
+
 namespace api
 {
     public class BatchExecutor<T, R>
@@ -44,6 +46,16 @@ namespace api
                 var task = TaskGenerator(input);
                 var result = await task;
                 return result;
+            }
+            catch(ArgumentNullException ex)
+            {
+                // This type of exception shows up for the false reports of tweets missing from the API.
+                throw new Exception($"{nameof(RunFor)} {ItemDescriptionGenerator(input)} failed withh error {ex.GetType().Name}\nStatck Trace:{ex.StackTrace}\nInner Exception: {ex.InnerException?.GetType().Name} {ex.InnerException?.Message}", ex);
+            }
+            catch(TwitterException ex)
+            {
+                // This type of exception has lots of extra data we need to draw.
+                throw new Exception($"{nameof(RunFor)} {ItemDescriptionGenerator(input)}.\n\tTitle:{ex.Title}\n\tType:{ex.Type}\n\tData:{ex.Data}\n\tErrors({ex.Errors.Count()}){string.Join("\n\t\t", ex.Errors.Select(e => $"Title: {e.Title} Type: {e.Type} Code: {e.Code} Message:{e.Message} Details: {e.Details} Parameter: {e.Parameter} Value: {e.Value}").ToList())}", ex);
             }
             catch(Exception ex)
             {
