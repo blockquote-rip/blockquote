@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Net;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Linq;
 
@@ -29,12 +30,13 @@ namespace Blockquote.Models
         public static async Task UpsertThread(CosmosTweet thread)
         {
             try
-            {	
+            {
                 var db = await CosmosHelper.GetDbContainer();
 
                 var resp = await db.UpsertItemAsync<CosmosTweet>(thread);
                 
-                if(resp.StatusCode != System.Net.HttpStatusCode.OK)
+                var successCodes = new List<HttpStatusCode> { HttpStatusCode.OK, HttpStatusCode.Created };
+                if(successCodes.Contains(resp.StatusCode) == false)
                 {
                     throw new Exception($"Failed to update database for tweet {thread.id}.  Code {resp.StatusCode}");
                 }
