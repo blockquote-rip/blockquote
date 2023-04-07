@@ -8,36 +8,39 @@ namespace Blockquote.Monitor;
 class Program
 {
     private static string _ExpressionKey = "TwitterApiRuleExpression";
+
+    private static string _Now => DateTimeOffset.Now.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+    private static void Log(string input) => Console.WriteLine($"{_Now} {input}");
     static async Task Main(string[] args)
     {
-        Console.WriteLine("Getting bearer token...");
+        Log($"Getting bearer token...");
         var bearer = EnvHelper.GetBearerToken();
 
-        Console.WriteLine("Creating Twitter client...");
+        Log("Creating Twitter client...");
         var client = new TwitterSharp.Client.TwitterClient(bearer);
 
-        Console.WriteLine("Building monitoring request...");
+        Log("Building monitoring request...");
         var expr = Expression.Parse(GetRuleExpression());
-        Console.WriteLine($"\tDesired expression is: {expr.ToString()}");
+        Log($"\tDesired expression is: {expr.ToString()}");
 
         // Check what our current filters are
         var curStreams = await client.GetInfoTweetStreamAsync();
         if(curStreams.Any(cs => cs.Value.ToString() == expr.ToString()))
         {
-            Console.WriteLine("\tExpression already in streams.");
+            Log("\tExpression already in streams.");
         }
         else
         {
             var request = new TwitterSharp.Request.StreamRequest(expr);
-            Console.WriteLine("\tAdding request expression to client's stream...");
+            Log("\tAdding request expression to client's stream...");
             await client.AddTweetStreamAsync(request);
         }
 
-        Console.WriteLine("Display current subscription for stream...");
+        Log("Display current subscription for stream...");
         var subs = await client.GetInfoTweetStreamAsync();
-        Console.WriteLine("Subscriptions: " + string.Join("\n", subs.Select(x => x.Id + " " + x.Value.ToString())));
+        Log("Subscriptions: " + string.Join("\n", subs.Select(x => x.Id + " " + x.Value.ToString())));
 
-        Console.WriteLine("Waiting for tweets...");
+        Log("Waiting for tweets...");
         // NextTweetStreamAsync will continue to run in background
         // Squelching async not awaited warning with a "discard"
         await Task.Run(async () =>
@@ -46,7 +49,7 @@ class Program
             // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
             await client.NextTweetStreamAsync(async (tweet) =>
             {
-                Console.WriteLine($"\n{DateTime.Now}\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
+                Log($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
                 var tweetThread = await GetTweetThread(tweet.Id, client);
                 if(tweetThread?.QuotedTweet != null)
                 {
@@ -54,7 +57,7 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("\tQuoted tweet was null, so not adding to database.");
+                    Log("\tQuoted tweet was null, so not adding to database.");
                 }
             },
             new TweetSearchOptions
@@ -74,7 +77,7 @@ class Program
         //     secondsLeft--;
         // }
 
-        Console.WriteLine("\nDone.");
+        Log("\nDone.");
     }
 
     public static string? GetRuleExpression() => EnvHelper.GetEnv(_ExpressionKey);
