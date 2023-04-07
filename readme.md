@@ -8,6 +8,7 @@ The tweet monitoring tool that powers [Blockquote.rip](https://www.blockquote.ri
 * The `URI`, `(primary) Key`, `DB id/name`, and `container name` for connecting to an Azure Cosmos DB. Obtaining these keys is outlined in the "Setting Up" section of [this tutorial](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-dotnet?tabs=azure-portal%2Clinux%2Cpasswordless%2Csign-in-azure-cli#setting-up)
 
 ## Running
+TODO: Update how to set secrets, how to run the monitor, how to run the API.
 You must provide all the keys in `monitor/secrets.example.json` either as user-secrets or as environment variables.
 
 After that you can perform a `dotnet run` in the `monitor` folder.
