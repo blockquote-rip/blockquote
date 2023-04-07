@@ -41,30 +41,7 @@ class Program
         Log("Subscriptions: " + string.Join("\n", subs.Select(x => x.Id + " " + x.Value.ToString())));
 
         Log("Waiting for tweets...");
-        // NextTweetStreamAsync will continue to run in background
-        // Squelching async not awaited warning with a "discard"
-        await Task.Run(async () =>
-        {
-            // Take in parameter a callback called for each new tweet
-            // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
-            await client.NextTweetStreamAsync(async (tweet) =>
-            {
-                Log($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
-                var tweetThread = await GetTweetThread(tweet.Id, client);
-                if(tweetThread?.QuotedTweet != null)
-                {
-                    await CosmosHelper.UpsertThread(tweetThread);
-                }
-                else
-                {
-                    Log("\tQuoted tweet was null, so not adding to database.");
-                }
-            },
-            new TweetSearchOptions
-            {
-                UserOptions = Array.Empty<UserOption>()
-            });
-        });
+        await MonitorTweetStream(client);
 
         // Debugging with a timeout.
         // Console.Write("\n");
@@ -78,6 +55,54 @@ class Program
         // }
 
         Log("\nDone.");
+    }
+
+    private static async Task MonitorTweetStream(TwitterClient client)
+    {
+        try
+        {
+            // NextTweetStreamAsync will continue to run in background
+            // Squelching async not awaited warning with a "discard"
+            await Task.Run(async () =>
+            {
+                // Take in parameter a callback called for each new tweet
+                // Since we want to get the basic info of the tweet author, we add an empty array of UserOption
+                await client.NextTweetStreamAsync(async (tweet) =>
+                {
+                    Log($"\n{tweet.Id} From {tweet.Author.Name} (Rules: {string.Join(',', tweet.MatchingRules.Select(x => x.Tag))})");
+                    var tweetThread = await GetTweetThread(tweet.Id, client);
+                    if (tweetThread?.QuotedTweet != null)
+                    {
+                        await CosmosHelper.UpsertThread(tweetThread);
+                    }
+                    else
+                    {
+                        Log("\tQuoted tweet was null, so not adding to database.");
+                    }
+                },
+                new TweetSearchOptions
+                {
+                    UserOptions = Array.Empty<UserOption>()
+                });
+            });
+        }
+        catch (Exception ex)
+        {
+            Log($"Encountered {ex.GetType().Name}:\n\t{ex.Message}");
+        }
+        finally
+        {
+            for(var d = 5; d >= 0; d--)
+            {
+                Console.Write($"\r\tRestarting monitoring in {d} seconds...");
+                await Task.Delay(1000);
+            }
+            Console.Write("\n");
+            Log("Canceling TweetStream...");
+            client.CancelTweetStream();
+            Log("Monitoring TweetStream...");
+            await MonitorTweetStream(client);
+        }
     }
 
     public static string? GetRuleExpression() => EnvHelper.GetEnv(_ExpressionKey);
